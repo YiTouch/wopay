@@ -240,7 +240,7 @@ RUST_LOG=debug cargo run
 
 - **文档**: [docs/](docs/)
 - **问题反馈**: [GitHub Issues](https://github.com/your-org/wopay/issues)
-- **邮箱**: support@wopay.com
+- **邮箱**: nubea7@gmail.com
 
 ## 🗺️ 路线图
 
