@@ -7,7 +7,7 @@ use anyhow::{Result, Context};
 
 /// 应用程序配置结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AppConfig {
+pub struct Config {
     /// 服务器配置
     pub server: ServerConfig,
     /// 数据库配置
@@ -111,12 +111,12 @@ pub struct WebhookConfig {
     pub concurrent_sends: usize,
 }
 
-impl AppConfig {
+impl Config {
     /// 从环境变量加载配置
     pub fn from_env() -> Result<Self> {
         dotenv::dotenv().ok(); // 加载.env文件，忽略错误
 
-        Ok(AppConfig {
+        Ok(Config {
             server: ServerConfig {
                 host: env::var("SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
                 port: env::var("SERVER_PORT")
@@ -262,9 +262,9 @@ impl AppConfig {
     }
 }
 
-impl Default for AppConfig {
+impl Default for Config {
     fn default() -> Self {
-        AppConfig {
+        Config {
             server: ServerConfig {
                 host: "127.0.0.1".to_string(),
                 port: 8080,

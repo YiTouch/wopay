@@ -4,7 +4,7 @@
 use ethers::{
     prelude::*,
     providers::{Provider, Ws, Http},
-    types::{Address, U256, H256, Filter, Log},
+    types::{Address, U256, H256, Filter, Log, TransactionRequest, Bytes},
     utils::parse_ether,
 };
 use sqlx::PgPool;
@@ -596,7 +596,7 @@ impl EthereumService {
 }
 
 /// 网络状态信息
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct NetworkStatus {
     /// 链ID
     pub chain_id: u64,

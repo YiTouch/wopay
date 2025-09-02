@@ -32,7 +32,7 @@ impl AppState {
     /// 创建测试用的应用状态
     #[cfg(test)]
     pub async fn new_for_test() -> Self {
-        use crate::config::{Config, ServerConfig, DatabaseConfig, BlockchainConfig, SecurityConfig, WebhookConfig};
+        use crate::config::{Config, ServerConfig, DatabaseConfig, BlockchainConfig, EthereumConfig, SecurityConfig, RateLimitConfig, WebhookConfig};
         
         // 创建测试数据库连接
         let db_pool = PgPool::connect("postgres://test:test@localhost/wopay_test")
@@ -44,29 +44,42 @@ impl AppState {
             server: ServerConfig {
                 host: "127.0.0.1".to_string(),
                 port: 8080,
-                workers: 1,
+                workers: Some(1),
+                timeout: 30,
             },
             database: DatabaseConfig {
                 url: "postgres://test:test@localhost/wopay_test".to_string(),
                 max_connections: 5,
                 min_connections: 1,
+                connection_timeout: 30,
+                idle_timeout: 600,
             },
             blockchain: BlockchainConfig {
-                ethereum_rpc_url: "https://eth-goerli.alchemyapi.io/v2/demo".to_string(),
-                ethereum_ws_url: None,
-                chain_id: 5,
-                confirmation_blocks: 6,
+                ethereum: EthereumConfig {
+                    rpc_url: "https://eth-goerli.alchemyapi.io/v2/demo".to_string(),
+                    ws_url: None,
+                    chain_id: 5,
+                    private_key: "test_private_key".to_string(),
+                    max_gas_price: 100,
+                    gas_limit: 21000,
+                },
+                default_confirmations: 6,
+                listener_interval: 30,
             },
             security: SecurityConfig {
                 jwt_secret: "test_jwt_secret".to_string(),
                 api_key_length: 32,
-                api_secret_length: 64,
-                token_expiry_hours: 24,
+                hmac_key_length: 64,
+                rate_limit: RateLimitConfig {
+                    requests_per_minute: 100,
+                    burst_size: 10,
+                },
             },
             webhook: WebhookConfig {
-                timeout_seconds: 30,
                 max_retries: 3,
-                retry_delays: vec![5, 15, 45],
+                retry_interval: 5,
+                timeout: 30,
+                concurrent_sends: 10,
             },
         };
 

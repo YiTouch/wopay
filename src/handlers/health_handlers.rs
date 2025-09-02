@@ -4,7 +4,7 @@
 use actix_web::{web, HttpResponse, Result as ActixResult};
 use serde::Serialize;
 use crate::models::ApiResponse;
-use crate::services::EthereumService;
+use crate::services::{EthereumService, ethereum_service::NetworkStatus};
 use crate::state::AppState;
 
 /// 系统健康检查响应
@@ -26,7 +26,7 @@ pub struct HealthResponse {
 #[derive(Debug, Serialize)]
 pub struct NetworkStatusResponse {
     /// 以太坊网络状态
-    pub ethereum: crate::services::ethereum_service::NetworkStatus,
+    pub ethereum: NetworkStatus,
 }
 
 /// 基础健康检查
@@ -152,9 +152,9 @@ pub async fn network_status(
     data: web::Data<AppState>,
 ) -> ActixResult<HttpResponse> {
     match EthereumService::new_with_config(
-        data.config.blockchain.ethereum_rpc_url.clone(),
-        data.config.blockchain.ethereum_ws_url.clone(),
-        data.config.blockchain.chain_id,
+        data.config.blockchain.ethereum.rpc_url.clone(),
+        data.config.blockchain.ethereum.ws_url.clone(),
+        data.config.blockchain.ethereum.chain_id,
     ).await {
         Ok(ethereum_service) => {
             match ethereum_service.get_network_status().await {

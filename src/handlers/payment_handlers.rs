@@ -4,11 +4,11 @@
 use actix_web::{web, HttpResponse, Result as ActixResult};
 use uuid::Uuid;
 use crate::models::{
-    CreatePaymentRequest, PaymentListQuery, ApiResponse
+    CreatePaymentRequest, PaymentListQuery, ApiResponse, Payment, PaginationParams, PaginatedResponse
 };
-use crate::services::{PaymentService, EthereumService};
+use crate::services::{PaymentService, EthereumService, MerchantService};
 use crate::state::AppState;
-use crate::utils::extract_api_key;
+use crate::utils::{extract_api_key, generate_payment_qr_code};
 
 /// 创建支付订单
 /// 

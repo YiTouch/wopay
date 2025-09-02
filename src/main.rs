@@ -127,8 +127,8 @@ async fn payment_monitoring_task(pool: sqlx::PgPool, config: Config) -> Result<(
     use tokio::time::{sleep, Duration};
 
     let ethereum_service = EthereumService::new_with_config(
-        config.blockchain.ethereum_rpc_url,
-        config.blockchain.ethereum_ws_url,
+        config.blockchain.ethereum_rpc_url.clone(),
+        config.blockchain.ethereum_ws_url.clone(),
         config.blockchain.chain_id,
     ).await?;
 
