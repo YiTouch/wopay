@@ -133,13 +133,16 @@ const canPay = computed(() => {
 const getMetaMaskProvider = () => {
   if (typeof window.ethereum !== 'undefined') {
     // 如果有多个钱包，尝试找到MetaMask
-    if (window.ethereum.providers) {
-      return window.ethereum.providers.find(provider => provider.isMetaMask)
+    if (window.ethereum.providers && Array.isArray(window.ethereum.providers)) {
+      const metamaskProvider = window.ethereum.providers.find(provider => provider.isMetaMask)
+      if (metamaskProvider) return metamaskProvider
     }
     // 检查是否是MetaMask
     if (window.ethereum.isMetaMask) {
       return window.ethereum
     }
+    // 如果没有明确标识，但存在ethereum对象，也尝试使用
+    return window.ethereum
   }
   return null
 }
@@ -157,14 +160,22 @@ const connectWallet = async () => {
     connecting.value = true
     
     // 请求账户访问权限
-    await metamaskProvider.request({ method: 'eth_requestAccounts' })
+    const accounts = await metamaskProvider.request({ method: 'eth_requestAccounts' })
+    account.value = accounts[0];
+    if (accounts.length === 0) {
+      showStatus('error', '未获取到账户信息')
+      return
+    }
+    
+    // 等待一小段时间确保MetaMask完全初始化
+    await new Promise(resolve => setTimeout(resolve, 100))
     
     // 创建provider和signer
     provider.value = new ethers.BrowserProvider(metamaskProvider)
     signer.value = await provider.value.getSigner()
     
     // 获取账户信息
-    account.value = await signer.value.getAddress()
+    // account.value = await signer.value.getAddress() // 已经从accounts[0]获取
     await updateBalance()
     
     isConnected.value = true
@@ -178,6 +189,8 @@ const connectWallet = async () => {
     console.error('连接MetaMask失败:', error)
     if (error.code === 4001) {
       showStatus('error', '用户拒绝了连接请求')
+    } else if (error.message.includes('private member')) {
+      showStatus('error', 'MetaMask版本不兼容，请更新MetaMask或刷新页面重试')
     } else {
       showStatus('error', '连接MetaMask失败: ' + error.message)
     }
@@ -331,8 +344,17 @@ const getEtherscanUrl = (hash) => {
 onMounted(async () => {
   // 检查是否已经连接过MetaMask钱包
   const metamaskProvider = getMetaMaskProvider()
-  if (metamaskProvider && metamaskProvider.selectedAddress) {
-    await connectWallet()
+  if (metamaskProvider) {
+    try {
+      // 检查是否已有连接的账户
+      const accounts = await metamaskProvider.request({ method: 'eth_accounts' })
+      if (accounts && accounts.length > 0) {
+        // 自动重连
+        await connectWallet()
+      }
+    } catch (error) {
+      console.log('检查已连接账户失败:', error)
+    }
   }
   
   // 从localStorage加载交易历史
