@@ -2,7 +2,7 @@
   <div class="payment-container">
     <div class="payment-card">
       <h2>WoPay - MetaMask支付</h2>
-      
+
       <!-- 钱包连接状态 -->
       <div class="wallet-status">
         <div v-if="!isConnected" class="status-disconnected">
@@ -11,7 +11,7 @@
             {{ connecting ? '连接中...' : '连接MetaMask' }}
           </button>
         </div>
-        
+
         <div v-else class="status-connected">
           <p>✅ 钱包已连接</p>
           <p class="wallet-address">地址: {{ formatAddress(account) }}</p>
@@ -22,43 +22,23 @@
       <!-- 支付表单 -->
       <div v-if="isConnected" class="payment-form">
         <h3>发起支付</h3>
-        
+
         <div class="form-group">
           <label>收款地址:</label>
-          <input 
-            v-model="paymentData.to" 
-            type="text" 
-            placeholder="0x..."
-            class="form-input"
-          />
+          <input v-model="paymentData.to" type="text" placeholder="0x..." class="form-input" />
         </div>
-        
+
         <div class="form-group">
           <label>支付金额 (ETH):</label>
-          <input 
-            v-model="paymentData.amount" 
-            type="number" 
-            step="0.001"
-            placeholder="0.001"
-            class="form-input"
-          />
+          <input v-model="paymentData.amount" type="number" step="0.001" placeholder="0.001" class="form-input" />
         </div>
-        
+
         <div class="form-group">
           <label>备注 (可选):</label>
-          <input 
-            v-model="paymentData.memo" 
-            type="text" 
-            placeholder="支付备注"
-            class="form-input"
-          />
+          <input v-model="paymentData.memo" type="text" placeholder="支付备注" class="form-input" />
         </div>
-        
-        <button 
-          @click="sendPayment" 
-          class="pay-btn"
-          :disabled="!canPay || paying"
-        >
+
+        <button @click="sendPayment" class="pay-btn" :disabled="!canPay || paying">
           {{ paying ? '支付中...' : '发起支付' }}
         </button>
       </div>
@@ -69,7 +49,7 @@
           {{ transactionStatus.message }}
         </div>
         <div v-if="transactionStatus.hash" class="transaction-hash">
-          <p>交易哈希: 
+          <p>交易哈希:
             <a :href="getEtherscanUrl(transactionStatus.hash)" target="_blank">
               {{ formatHash(transactionStatus.hash) }}
             </a>
@@ -98,17 +78,17 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, shallowRef, markRaw } from 'vue'
 import { ethers } from 'ethers'
 
 // 响应式数据
 const isConnected = ref(false)
-const connecting = ref(false)
+const connecting = ref(false) 
 const paying = ref(false)
 const account = ref('')
 const balance = ref('0')
-const provider = ref(null)
-const signer = ref(null)
+var provider = shallowRef(null)
+const signer = shallowRef(null)
 
 // 支付数据
 const paymentData = reactive({
@@ -123,77 +103,51 @@ const transactionHistory = ref([])
 
 // 计算属性
 const canPay = computed(() => {
-  return paymentData.to && 
-         paymentData.amount && 
-         parseFloat(paymentData.amount) > 0 &&
-         ethers.isAddress(paymentData.to)
+  return paymentData.to &&
+    paymentData.amount &&
+    parseFloat(paymentData.amount) > 0 &&
+    ethers.isAddress(paymentData.to)
 })
 
 // 获取MetaMask提供者
 const getMetaMaskProvider = () => {
   if (typeof window.ethereum !== 'undefined') {
-    // 如果有多个钱包，尝试找到MetaMask
-    if (window.ethereum.providers && Array.isArray(window.ethereum.providers)) {
-      const metamaskProvider = window.ethereum.providers.find(provider => provider.isMetaMask)
-      if (metamaskProvider) return metamaskProvider
-    }
-    // 检查是否是MetaMask
-    if (window.ethereum.isMetaMask) {
-      return window.ethereum
-    }
-    // 如果没有明确标识，但存在ethereum对象，也尝试使用
-    return window.ethereum
+    provider.value = markRaw(new ethers.BrowserProvider(window.ethereum))
   }
-  return null
 }
 
 // 连接MetaMask钱包
 const connectWallet = async () => {
-  const metamaskProvider = getMetaMaskProvider()
-  
-  if (!metamaskProvider) {
+  getMetaMaskProvider()
+  if (!provider.value) {
     showStatus('error', '请安装MetaMask钱包或确保MetaMask已启用')
     return
   }
-
   try {
     connecting.value = true
-    
     // 请求账户访问权限
-    const accounts = await metamaskProvider.request({ method: 'eth_requestAccounts' })
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     account.value = accounts[0];
     if (accounts.length === 0) {
       showStatus('error', '未获取到账户信息')
       return
     }
-    
+
     // 等待一小段时间确保MetaMask完全初始化
     await new Promise(resolve => setTimeout(resolve, 100))
     
-    // 创建provider和signer
-    provider.value = new ethers.BrowserProvider(metamaskProvider)
-    signer.value = await provider.value.getSigner()
-    
+    // 创建signer - 在用户授权后
+    signer.value = markRaw(await provider.value.getSigner())
+
     // 获取账户信息
     // account.value = await signer.value.getAddress() // 已经从accounts[0]获取
     await updateBalance()
-    
+
     isConnected.value = true
     showStatus('success', 'MetaMask连接成功')
-    
-    // 监听账户变化
-    metamaskProvider.on('accountsChanged', handleAccountsChanged)
-    metamaskProvider.on('chainChanged', handleChainChanged)
-    
+
   } catch (error) {
     console.error('连接MetaMask失败:', error)
-    if (error.code === 4001) {
-      showStatus('error', '用户拒绝了连接请求')
-    } else if (error.message.includes('private member')) {
-      showStatus('error', 'MetaMask版本不兼容，请更新MetaMask或刷新页面重试')
-    } else {
-      showStatus('error', '连接MetaMask失败: ' + error.message)
-    }
   } finally {
     connecting.value = false
   }
@@ -202,7 +156,7 @@ const connectWallet = async () => {
 // 更新余额
 const updateBalance = async () => {
   if (!provider.value || !account.value) return
-  
+
   try {
     const balanceWei = await provider.value.getBalance(account.value)
     balance.value = ethers.formatEther(balanceWei)
@@ -213,30 +167,40 @@ const updateBalance = async () => {
 
 // 发起支付
 const sendPayment = async () => {
-  if (!canPay.value || !signer.value) return
+  if (!canPay.value) return
   
+  // 确保有signer
+  if (!signer.value) {
+    try {
+      signer.value = provider.value.getSigner()
+    } catch (error) {
+      showStatus('error', '无法创建签名器，请重新连接钱包')
+      return
+    }
+  }
+
   try {
     paying.value = true
     showStatus('info', '正在发起交易...')
-    
+
     // 构建交易
     const transaction = {
       to: paymentData.to,
       value: ethers.parseEther(paymentData.amount),
       data: paymentData.memo ? ethers.toUtf8Bytes(paymentData.memo) : '0x'
     }
-    
+
     // 发送交易
     const tx = await signer.value.sendTransaction(transaction)
-    
+
     showStatus('info', '交易已提交，等待确认...', tx.hash)
-    
+
     // 等待交易确认
     const receipt = await tx.wait()
-    
+
     if (receipt.status === 1) {
       showStatus('success', '支付成功！', tx.hash)
-      
+
       // 添加到交易历史
       addToHistory({
         hash: tx.hash,
@@ -244,21 +208,21 @@ const sendPayment = async () => {
         amount: paymentData.amount,
         timestamp: Date.now()
       })
-      
+
       // 清空表单
       paymentData.to = ''
       paymentData.amount = ''
       paymentData.memo = ''
-      
+
       // 更新余额
       await updateBalance()
     } else {
       showStatus('error', '交易失败')
     }
-    
+
   } catch (error) {
     console.error('支付失败:', error)
-    
+
     if (error.code === 'ACTION_REJECTED') {
       showStatus('error', '用户取消了交易')
     } else if (error.code === 'INSUFFICIENT_FUNDS') {
@@ -274,7 +238,7 @@ const sendPayment = async () => {
 // 显示状态消息
 const showStatus = (type, message, hash = null) => {
   transactionStatus.value = { type, message, hash }
-  
+
   // 3秒后自动清除状态（除了成功状态）
   if (type !== 'success') {
     setTimeout(() => {
@@ -286,12 +250,12 @@ const showStatus = (type, message, hash = null) => {
 // 添加到交易历史
 const addToHistory = (transaction) => {
   transactionHistory.value.unshift(transaction)
-  
+
   // 只保留最近10条记录
   if (transactionHistory.value.length > 10) {
     transactionHistory.value = transactionHistory.value.slice(0, 10)
   }
-  
+
   // 保存到localStorage
   localStorage.setItem('wopay_transactions', JSON.stringify(transactionHistory.value))
 }
@@ -343,27 +307,17 @@ const getEtherscanUrl = (hash) => {
 // 组件挂载时的初始化
 onMounted(async () => {
   // 检查是否已经连接过MetaMask钱包
-  const metamaskProvider = getMetaMaskProvider()
-  if (metamaskProvider) {
+  getMetaMaskProvider()
+  if (provider.value) {
     try {
       // 检查是否已有连接的账户
-      const accounts = await metamaskProvider.request({ method: 'eth_accounts' })
+      const accounts = await window.ethereum.request({ method: 'eth_accounts' })
       if (accounts && accounts.length > 0) {
         // 自动重连
         await connectWallet()
       }
     } catch (error) {
       console.log('检查已连接账户失败:', error)
-    }
-  }
-  
-  // 从localStorage加载交易历史
-  const savedHistory = localStorage.getItem('wopay_transactions')
-  if (savedHistory) {
-    try {
-      transactionHistory.value = JSON.parse(savedHistory)
-    } catch (error) {
-      console.error('加载交易历史失败:', error)
     }
   }
 })
@@ -427,14 +381,16 @@ h3 {
   border: 1px solid #10b981;
 }
 
-.wallet-address, .wallet-balance {
+.wallet-address,
+.wallet-balance {
   font-size: 14px;
   color: #6b7280;
   margin: 8px 0;
   word-break: break-all;
 }
 
-.connect-btn, .pay-btn {
+.connect-btn,
+.pay-btn {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
@@ -448,12 +404,14 @@ h3 {
   margin-top: 16px;
 }
 
-.connect-btn:hover, .pay-btn:hover {
+.connect-btn:hover,
+.pay-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-.connect-btn:disabled, .pay-btn:disabled {
+.connect-btn:disabled,
+.pay-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
@@ -598,17 +556,17 @@ h3 {
   .payment-container {
     padding: 16px;
   }
-  
+
   .payment-card {
     padding: 24px;
   }
-  
+
   .history-item {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
   }
-  
+
   .tx-meta {
     align-items: flex-start;
   }

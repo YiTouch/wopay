@@ -2,3 +2,4 @@
 /.idea
 /front/.vscode
 package-lock.json
+*.lock
